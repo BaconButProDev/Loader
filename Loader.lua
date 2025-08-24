@@ -97,9 +97,10 @@ local function createButton(text, posY)
     return Button
 end
 
-local AimbotBtn = createButton("🎯 Load Aimbot Script", 0.25)
-local PlaneBtn = createButton("✈️ Load Build a Plane Script", 0.50)
-local LuckyBlockBtn = createButton("🟨 Load Lucky Block Script", 0.75)
+local AimbotBtn = createButton("🎯 Load Aimbot Script", 0.20)
+local PlaneBtn = createButton("✈️ Load Build a Plane Script", 0.40)
+local LuckyBlockBtn = createButton("🟨 Load Lucky Block Script", 0.60)
+local BreakinBtn = createButton("🏠 Load Break In Roles Script", 0.80)
 
 local function closeGui()
     TweenService:Create(MainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
@@ -123,9 +124,14 @@ LuckyBlockBtn.MouseButton1Click:Connect(function()
     closeGui()
 end)
 
+BreakinBtn.MouseButton1Click:Connect(function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/BaconButProDev/Loader/refs/heads/main/Breakin1-role.lua"))()
+    closeGui()
+end)
+
 MainFrame.Size = UDim2.new(0,0,0,0)
 local tweenIn = TweenService:Create(MainFrame, TweenInfo.new(0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-    {Size = UDim2.new(0,350,0,260)})
+    {Size = UDim2.new(0,350,0,300)})
 tweenIn:Play()
 
 local dragging, dragInput, dragStart, startPos
