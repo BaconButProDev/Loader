@@ -11,15 +11,13 @@ end
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "CustomLoader"
 ScreenGui.ResetOnSpawn = false
-
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.DisplayOrder = 999
-
 ScreenGui.Parent = PlayerGui
 
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 350, 0, 200)
-MainFrame.Position = UDim2.new(0.5, -175, 0.5, -100)
+MainFrame.Size = UDim2.new(0, 350, 0, 260)
+MainFrame.Position = UDim2.new(0.5, -175, 0.5, -130)
 MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 MainFrame.BackgroundTransparency = 0.1
 MainFrame.BorderSizePixel = 0
@@ -99,9 +97,9 @@ local function createButton(text, posY)
     return Button
 end
 
-local AimbotBtn = createButton("🎯 Load Aimbot Script", 0.35)
-local PlaneBtn = createButton("✈️ Load Build a Plane Script", 0.65)
-local LuckyBlockBtn = createButton("🟨 Load Lucky Block Script", 0.85)
+local AimbotBtn = createButton("🎯 Load Aimbot Script", 0.25)
+local PlaneBtn = createButton("✈️ Load Build a Plane Script", 0.50)
+local LuckyBlockBtn = createButton("🟨 Load Lucky Block Script", 0.75)
 
 local function closeGui()
     TweenService:Create(MainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
@@ -127,7 +125,7 @@ end)
 
 MainFrame.Size = UDim2.new(0,0,0,0)
 local tweenIn = TweenService:Create(MainFrame, TweenInfo.new(0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-    {Size = UDim2.new(0,350,0,200)})
+    {Size = UDim2.new(0,350,0,260)})
 tweenIn:Play()
 
 local dragging, dragInput, dragStart, startPos
