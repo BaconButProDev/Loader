@@ -5,21 +5,38 @@ local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 local CoreGui = game:GetService("CoreGui")
 
+local espObjects = {}
+local connections = {}
+local gui = nil
+local FOVCircle = nil
+local aimKeyButton = nil
+local mainConnection = nil
+
 local Config = {
     FOV_Size = 150, ShowFOV = true, TeamCheck = true, WallCheck = true,
     ESP = true, ESPBorder = false, ESPName = false, ESPHealth = false,
     ESPHighlight = true,
-    Aimbot = true, SafeAim = true, SafeAimStrength = 0.5,
+    Aimbot = true, SafeAim = false,
+    SafeAimLevel = "Medium",
+    SafeAimStrength = 0.5,
     AimbotKey = Enum.UserInputType.MouseButton2,
     ToggleKey = Enum.KeyCode.P, HideKey = Enum.KeyCode.H, DeleteKey = Enum.KeyCode.Delete,
     Smoothing = 0.3, AimPart = "Head", TargetPriority = "Auto",
     Debug = false
 }
 
+local SafeAimPresets = {
+    Low =    { strength = 0.15, smoothing = 0.12, maxOffset = 0.25 },
+    Medium = { strength = 0.5,  smoothing = 0.30, maxOffset = 0.6  },
+    High =   { strength = 0.9,  smoothing = 0.55, maxOffset = 1.2  }
+}
+
 local State = {
     enabled = true, guiVisible = true, aiming = false, waitingForKey = false,
     currentTarget = nil, targetLocked = false, scriptRunning = true
 }
+
+local destroyed = false
 
 local AimKey = { kind = "UserInputType", value = Config.AimbotKey }
 local function setAimKeyFromInputObj(k)
@@ -48,34 +65,102 @@ end
 local function safeDisconnect(conn)
     if not conn then return end
     pcall(function()
-        if typeof(conn) == "RBXScriptConnection" and conn.Disconnect then
+        local t = typeof(conn)
+        if t == "RBXScriptConnection" and conn.Disconnect then
             conn:Disconnect()
-        elseif typeof(conn) == "Instance" and conn.Destroy then
-            conn:Destroy()
-        else
-            if type(conn) == "function" then
-                pcall(conn)
+            return
+        end
+        if t == "Instance" then
+            if conn.Destroy then conn:Destroy() end
+            return
+        end
+        if type(conn) == "table" then
+            if conn.Remove then
+                pcall(function() conn:Remove() end)
+                return
             end
+            if conn.Destroy then
+                pcall(function() conn:Destroy() end)
+                return
+            end
+        end
+        if type(conn) == "function" then
+            pcall(conn)
         end
     end)
 end
 
 local function cleanup()
+    if destroyed then return end
+    destroyed = true
+
     State.scriptRunning = false
-    if gui then pcall(function() gui:Destroy() end); gui = nil end
-    if FOVCircle then pcall(function() FOVCircle:Remove() end); FOVCircle = nil end
-    for _, d in pairs(espObjects) do
-        safeDisconnect(d.connection); safeDisconnect(d.charConnection); safeDisconnect(d.removeConn)
-        if d.billboard then pcall(function() d.billboard:Destroy() end) end
-        if d.highlight then pcall(function() d.highlight:Destroy() end) end
+    State.enabled = false
+    State.guiVisible = false
+    State.aiming = false
+    State.targetLocked = false
+    State.currentTarget = nil
+
+    if gui then
+        pcall(function() gui.Enabled = false end)
+        pcall(function()
+            if gui.Parent then gui:Destroy() end
+        end)
+        gui = nil
+    end
+
+    if FOVCircle then
+        pcall(function()
+            if FOVCircle.Remove then
+                FOVCircle:Remove()
+            else
+                FOVCircle.Visible = false
+            end
+        end)
+        FOVCircle = nil
+    end
+
+    if type(espObjects) == "table" then
+        for player, d in pairs(espObjects) do
+            if d then
+                safeDisconnect(d.connection)
+                safeDisconnect(d.charConnection)
+                safeDisconnect(d.removeConn)
+                if d.billboard and d.billboard.Parent then
+                    pcall(function() d.billboard:Destroy() end)
+                end
+                if d.highlight and d.highlight.Parent then
+                    pcall(function() d.highlight:Destroy() end)
+                end
+            end
+            espObjects[player] = nil
+        end
     end
     espObjects = {}
-    for _, c in pairs(connections) do safeDisconnect(c) end
+
+    if type(connections) == "table" then
+        for i = #connections, 1, -1 do
+            local c = connections[i]
+            safeDisconnect(c)
+            connections[i] = nil
+        end
+    end
     connections = {}
-    safeDisconnect(mainConnection); mainConnection = nil
-    State.currentTarget = nil; State.targetLocked = false; State.aiming = false
-    task.wait(0.1);
-    pcall(function() script:Destroy() end)
+
+    if mainConnection then
+        safeDisconnect(mainConnection)
+        mainConnection = nil
+    end
+
+    aimKeyButton = nil
+
+    pcall(function()
+        if typeof(script) == "Instance" and script.Destroy then
+            script:Destroy()
+        end
+    end)
+
+    print("Aimbot cleaned up.")
 end
 
 local function isEnemy(p)
@@ -83,7 +168,6 @@ local function isEnemy(p)
     if not LocalPlayer.Team then return true end
     if p.Team and p.Team == LocalPlayer.Team then return false end
     if p.TeamColor and LocalPlayer.TeamColor and p.TeamColor == LocalPlayer.TeamColor then return false end
-
     if p.Character then
         local candidates = {"Team", "team", "Faction", "faction", "factionName"}
         for _, name in ipairs(candidates) do
@@ -95,7 +179,6 @@ local function isEnemy(p)
             end
         end
     end
-
     return true
 end
 
@@ -117,14 +200,31 @@ end
 
 local function getTargetPart(char)
     if not char then return nil end
-    local parts = {
-        Head = char:FindFirstChild("Head"),
-        Torso = char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso"),
-        ["Left Leg"] = char:FindFirstChild("Left Leg") or char:FindFirstChild("LeftUpperLeg"),
-        ["Right Leg"] = char:FindFirstChild("Right Leg") or char:FindFirstChild("RightUpperLeg")
+    local lookup = {
+        Head = {"Head"},
+        Torso = {"Torso", "UpperTorso"},
+        LeftArm = {"LeftUpperArm", "LeftLowerArm", "Left Arm", "LeftArm"},
+        RightArm = {"RightUpperArm", "RightLowerArm", "Right Arm", "RightArm"},
+        LeftLeg = {"Left Leg", "LeftUpperLeg", "LeftLowerLeg", "LeftLeg"},
+        RightLeg = {"Right Leg", "RightUpperLeg", "RightLowerLeg", "RightLeg"}
     }
-    local tp = parts[Config.AimPart] or char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso") or char:FindFirstChild("Head")
-    return tp
+
+    local desired = tostring(Config.AimPart or "Head")
+    local names = lookup[desired] or {desired}
+    for _, n in ipairs(names) do
+        local p = char:FindFirstChild(n)
+        if p then return p end
+    end
+
+    local fallbacks = {"Head", "UpperTorso", "Torso"}
+    for _, n in ipairs(fallbacks) do
+        if char:FindFirstChild(n) then return char:FindFirstChild(n) end
+    end
+
+    for _, v in ipairs(char:GetChildren()) do
+        if v:IsA("BasePart") then return v end
+    end
+    return nil
 end
 
 local function isTargetValid(player)
@@ -145,6 +245,9 @@ local function compositeScore(player)
     local mouseNorm = math.clamp(mouseDist / math.max(Config.FOV_Size, 1), 0, 1)
     local worldDist = (tp.Position - Camera.CFrame.Position).Magnitude
     local distNorm = math.clamp(worldDist / 1000, 0, 1)
+    if Config.SafeAim then
+        return mouseNorm * 0.6 + distNorm * 0.4
+    end
     local healthNorm = 1
     if hum and hum.MaxHealth and hum.MaxHealth > 0 then healthNorm = math.clamp(hum.Health / hum.MaxHealth, 0, 1) end
     return mouseNorm * 0.5 + healthNorm * 0.3 + distNorm * 0.2
@@ -163,15 +266,7 @@ local function getClosestTarget()
     local best, bestScore = nil, math.huge
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= LocalPlayer and p.Character and isTargetValid(p) then
-            local hum = p.Character:FindFirstChild("Humanoid"); local score
-            if Config.TargetPriority == "Mouse" then
-                local tp = getTargetPart(p.Character); local sp, _ = Camera:WorldToViewportPoint(tp.Position)
-                score = (Vector2.new(sp.X, sp.Y) - UserInputService:GetMouseLocation()).Magnitude
-            elseif Config.TargetPriority == "Distance" then
-                local tp = getTargetPart(p.Character); score = (tp.Position - Camera.CFrame.Position).Magnitude
-            elseif Config.TargetPriority == "Health" then
-                score = hum and hum.Health or math.huge
-            else score = compositeScore(p) end
+            local score = compositeScore(p)
             if score < bestScore then bestScore = score; best = p end
         end
     end
@@ -183,8 +278,9 @@ local function getClosestTarget()
 end
 
 local function humanizedOffset()
-    local maxOffset = 0.6
-    local strength = math.clamp(Config.SafeAimStrength or 0.5, 0, 1)
+    local preset = SafeAimPresets[Config.SafeAimLevel] or SafeAimPresets.Medium
+    local maxOffset = preset.maxOffset or 0.6
+    local strength = math.clamp(preset.strength or 0.5, 0, 1)
     local r = maxOffset * strength
     return Vector3.new((math.random()-0.5)*2*r, (math.random()-0.5)*2*r, (math.random()-0.5)*2*r)
 end
@@ -194,7 +290,9 @@ local function aimAt(target)
     local tp = getTargetPart(target.Character); if not tp then return end
     local targetPos = tp.Position
     if Config.SafeAim then
-        local off = humanizedOffset(); local smoothingFactor = math.clamp(Config.Smoothing or 0.3, 0, 1)
+        local off = humanizedOffset()
+        local preset = SafeAimPresets[Config.SafeAimLevel] or SafeAimPresets.Medium
+        local smoothingFactor = math.clamp(preset.smoothing or Config.Smoothing or 0.3, 0, 1)
         targetPos = targetPos + off * (1 - smoothingFactor)
     end
     local camPos = Camera.CFrame.Position
@@ -214,7 +312,13 @@ local connections = {}
 local gui, FOVCircle, aimKeyButton, mainConnection
 
 local okDraw, circle = pcall(function() return Drawing.new("Circle") end)
-if okDraw and circle then FOVCircle = circle; FOVCircle.Thickness = 2; FOVCircle.Filled = false; FOVCircle.Transparency = 0.8 end
+if okDraw and circle then
+    FOVCircle = circle
+    FOVCircle.Thickness = 2
+    FOVCircle.Filled = false
+    FOVCircle.Transparency = 0.8
+    FOVCircle.Visible = false
+end
 
 local function waitForParts(character, names, timeout)
     local start = tick()
@@ -232,11 +336,7 @@ end
 
 local function createESP(player)
     if player == LocalPlayer then return end
-
-    if espObjects[player] and espObjects[player].settingUp then
-        return
-    end
-
+    if espObjects[player] and espObjects[player].settingUp then return end
     espObjects[player] = espObjects[player] or {}
     espObjects[player].settingUp = true
 
@@ -415,7 +515,7 @@ end
 local function createGUI()
     gui = Instance.new("ScreenGui"); gui.Name = "AimbotGUI"; gui.Parent = CoreGui; gui.ResetOnSpawn = false
 
-    local frame = Instance.new("Frame"); frame.Size = UDim2.new(0,320,0,520); frame.Position = UDim2.new(0,12,0.08,0)
+    local frame = Instance.new("Frame"); frame.Size = UDim2.new(0,320,0,560); frame.Position = UDim2.new(0,12,0.08,0)
     frame.BackgroundColor3 = Color3.fromRGB(24,24,24); frame.BorderSizePixel = 0; frame.Parent = gui
     local corner = Instance.new("UICorner", frame); corner.CornerRadius = UDim.new(0,12)
     local stroke = Instance.new("UIStroke", frame); stroke.Color = Color3.fromRGB(45,45,45); stroke.Thickness = 1
@@ -454,6 +554,36 @@ local function createGUI()
     addToggle("Team Check","TeamCheck"); addToggle("Wall Check","WallCheck")
     addToggle("ESP Border","ESPBorder"); addToggle("ESP Name","ESPName"); addToggle("ESP Health","ESPHealth")
     addToggle("ESP Highlight","ESPHighlight")
+
+    local aimParts = {"Head","Torso","LeftArm","RightArm","LeftLeg","RightLeg"}
+    local partIdx = 1
+    for i, v in ipairs(aimParts) do if v == Config.AimPart then partIdx = i; break end end
+    local aimPartBtn = Instance.new("TextButton"); aimPartBtn.Size = UDim2.new(1,-10,0,32); aimPartBtn.Position = UDim2.new(0,5,0,y)
+    aimPartBtn.Text = "Aim Part: "..tostring(aimParts[partIdx]); aimPartBtn.Font = Enum.Font.Gotham; aimPartBtn.TextSize = 14; aimPartBtn.Parent = scroll
+    local ucPart = Instance.new("UICorner", aimPartBtn); ucPart.CornerRadius = UDim.new(0,6)
+    aimPartBtn.MouseButton1Click:Connect(function()
+        partIdx = partIdx + 1
+        if partIdx > #aimParts then partIdx = 1 end
+        Config.AimPart = aimParts[partIdx]
+        aimPartBtn.Text = "Aim Part: "..tostring(Config.AimPart)
+    end)
+    y = y + 40
+
+    local safeLevels = {"Low","Medium","High"}
+    local safeIdx = 2
+    for i,v in ipairs(safeLevels) do if v == Config.SafeAimLevel then safeIdx = i; break end end
+    local safeBtn = Instance.new("TextButton"); safeBtn.Size = UDim2.new(1,-10,0,32); safeBtn.Position = UDim2.new(0,5,0,y)
+    safeBtn.Text = "SafeAim Level: "..tostring(safeLevels[safeIdx]); safeBtn.Font = Enum.Font.Gotham; safeBtn.TextSize = 14; safeBtn.Parent = scroll
+    local ucSafe = Instance.new("UICorner", safeBtn); ucSafe.CornerRadius = UDim.new(0,6)
+    safeBtn.MouseButton1Click:Connect(function()
+        safeIdx = safeIdx + 1
+        if safeIdx > #safeLevels then safeIdx = 1 end
+        Config.SafeAimLevel = safeLevels[safeIdx]
+        local preset = SafeAimPresets[Config.SafeAimLevel] or SafeAimPresets.Medium
+        Config.SafeAimStrength = preset.strength
+        safeBtn.Text = "SafeAim Level: "..tostring(Config.SafeAimLevel)
+    end)
+    y = y + 40
 
     local function addSlider(name, key, min, max, precision)
         precision = precision or 2
@@ -551,7 +681,12 @@ local function createGUI()
 
     local destroy = Instance.new("TextButton"); destroy.Size = UDim2.new(1,-10,0,40); destroy.Position = UDim2.new(0,5,0,y); destroy.Text = "🗑️ DESTROY SCRIPT"
     destroy.Font = Enum.Font.Gotham; destroy.TextSize = 14; destroy.Parent = scroll; local uc3 = Instance.new("UICorner", destroy); uc3.CornerRadius = UDim.new(0,6)
-    destroy.MouseButton1Click:Connect(cleanup)
+    destroy.MouseButton1Click:Connect(function()
+        if destroy then
+            pcall(function() destroy.Text = "Destroying..." end)
+        end
+        cleanup()
+    end)
     y = y + 48
 
     scroll.CanvasSize = UDim2.new(0,0,0,y)
@@ -596,13 +731,11 @@ for _, p in pairs(Players:GetPlayers()) do
         createESP(p)
     end
 end
-
 connections[#connections+1] = Players.PlayerAdded:Connect(function(p)
     if State.scriptRunning then
         createESP(p)
     end
 end)
-
 connections[#connections+1] = Players.PlayerRemoving:Connect(function(p)
     if espObjects[p] then
         safeDisconnect(espObjects[p].connection); safeDisconnect(espObjects[p].charConnection); safeDisconnect(espObjects[p].removeConn)
@@ -630,4 +763,4 @@ mainConnection = RunService.Heartbeat:Connect(function()
 end)
 
 createGUI(); handleInput()
-print("🎯 Aimbot + ESP v2 Loaded (SafeAim improved, stable ESP, drag GUI)")
+print("🎯 Aimbot + ESP v2 Loaded (AimPart cleaned, cleanup fixed)")
