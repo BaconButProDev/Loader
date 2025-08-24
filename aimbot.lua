@@ -65,7 +65,7 @@ local function cleanup()
     if gui then pcall(function() gui:Destroy() end); gui = nil end
     if FOVCircle then pcall(function() FOVCircle:Remove() end); FOVCircle = nil end
     for _, d in pairs(espObjects) do
-        safeDisconnect(d.connection); safeDisconnect(d.charConnection)
+        safeDisconnect(d.connection); safeDisconnect(d.charConnection); safeDisconnect(d.removeConn)
         if d.billboard then pcall(function() d.billboard:Destroy() end) end
         if d.highlight then pcall(function() d.highlight:Destroy() end) end
     end
@@ -79,7 +79,24 @@ local function cleanup()
 end
 
 local function isEnemy(p)
-    return not Config.TeamCheck or not LocalPlayer.Team or not p.Team or p.Team ~= LocalPlayer.Team
+    if not Config.TeamCheck then return true end
+    if not LocalPlayer.Team then return true end
+    if p.Team and p.Team == LocalPlayer.Team then return false end
+    if p.TeamColor and LocalPlayer.TeamColor and p.TeamColor == LocalPlayer.TeamColor then return false end
+
+    if p.Character then
+        local candidates = {"Team", "team", "Faction", "faction", "factionName"}
+        for _, name in ipairs(candidates) do
+            local v = p.Character:FindFirstChild(name)
+            if v and v:IsA("StringValue") then
+                if LocalPlayer.Team and tostring(v.Value) == tostring(LocalPlayer.Team.Name) then
+                    return false
+                end
+            end
+        end
+    end
+
+    return true
 end
 
 local function hasLineOfSight(part)
@@ -199,35 +216,71 @@ local gui, FOVCircle, aimKeyButton, mainConnection
 local okDraw, circle = pcall(function() return Drawing.new("Circle") end)
 if okDraw and circle then FOVCircle = circle; FOVCircle.Thickness = 2; FOVCircle.Filled = false; FOVCircle.Transparency = 0.8 end
 
+local function waitForParts(character, names, timeout)
+    local start = tick()
+    while tick() - start < timeout do
+        if not character or not character.Parent then return false end
+        local ok = true
+        for _, n in ipairs(names) do
+            if not character:FindFirstChild(n) then ok = false; break end
+        end
+        if ok then return true end
+        task.wait(0.05)
+    end
+    return false
+end
+
 local function createESP(player)
     if player == LocalPlayer then return end
 
-    if espObjects[player] then
-        safeDisconnect(espObjects[player].connection)
-        safeDisconnect(espObjects[player].charConnection)
-        if espObjects[player].billboard then pcall(function() espObjects[player].billboard:Destroy() end) end
-        if espObjects[player].highlight then pcall(function() espObjects[player].highlight:Destroy() end) end
-        espObjects[player] = nil
+    if espObjects[player] and espObjects[player].settingUp then
+        return
+    end
+
+    espObjects[player] = espObjects[player] or {}
+    espObjects[player].settingUp = true
+
+    local function cleanupOld()
+        if espObjects[player] then
+            safeDisconnect(espObjects[player].connection)
+            safeDisconnect(espObjects[player].charConnection)
+            safeDisconnect(espObjects[player].removeConn)
+            if espObjects[player].billboard then pcall(function() espObjects[player].billboard:Destroy() end) end
+            if espObjects[player].highlight then pcall(function() espObjects[player].highlight:Destroy() end) end
+            espObjects[player] = nil
+        end
     end
 
     local function setupESP(character)
-        if not State.scriptRunning or not character then return end
-        task.wait(0.12)
+        if not State.scriptRunning or not character then cleanupOld(); return end
+        local ok = waitForParts(character, {"Humanoid", "HumanoidRootPart"}, 2)
+        local head = character:FindFirstChild("Head")
+        if not head then ok = ok or waitForParts(character, {"Head"}, 1) end
+        if not ok and not (character:FindFirstChild("Humanoid") and (character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart"))) then
+            espObjects[player] = espObjects[player] or {}
+            espObjects[player].settingUp = false
+            return
+        end
 
         if espObjects[player] then
             safeDisconnect(espObjects[player].connection)
             if espObjects[player].billboard then pcall(function() espObjects[player].billboard:Destroy() end) end
             if espObjects[player].highlight then pcall(function() espObjects[player].highlight:Destroy() end) end
-            espObjects[player] = nil
+            espObjects[player] = espObjects[player] or {}
         end
 
-        local hum = character:FindFirstChild("Humanoid"); local head = character:FindFirstChild("Head")
-        local root = character:FindFirstChild("HumanoidRootPart")
-        if not hum or not head or not root then return end
+        local hum = character:FindFirstChild("Humanoid"); head = character:FindFirstChild("Head")
+        local root = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso")
+        if not hum or not root then
+            espObjects[player].settingUp = false
+            return
+        end
+
+        local parentPart = head or root
 
         local billboard = Instance.new("BillboardGui")
         billboard.Name = "ESP_"..player.Name
-        billboard.Parent = head
+        billboard.Parent = parentPart
         billboard.Size = UDim2.new(0,400,0,400)
         billboard.StudsOffset = Vector3.new(0,1,0)
         billboard.AlwaysOnTop = true
@@ -254,8 +307,8 @@ local function createESP(player)
         local function createOrDestroyHighlight()
             if Config.ESPHighlight then
                 if not highlightInstance then
-                    local ok, h = pcall(function() return Instance.new("Highlight") end)
-                    if ok and h then
+                    local okh, h = pcall(function() return Instance.new("Highlight") end)
+                    if okh and h then
                         highlightInstance = Instance.new("Highlight")
                         highlightInstance.Name = "ESP_Highlight_"..player.Name
                         highlightInstance.Adornee = character
@@ -307,7 +360,7 @@ local function createESP(player)
                 return
             end
 
-            local headTop = head.Position + Vector3.new(0,0.45,0)
+            local headTop = (character:FindFirstChild("Head") and (character.Head.Position + Vector3.new(0,0.45,0))) or (root.Position + Vector3.new(0,1,0))
             local feet = root.Position - Vector3.new(0,1,0)
             local topScreen = Camera:WorldToViewportPoint(headTop)
             local botScreen = Camera:WorldToViewportPoint(feet)
@@ -328,18 +381,35 @@ local function createESP(player)
             end
         end)
 
-        espObjects[player] = {billboard = billboard, connection = conn, charConnection = nil, highlight = highlightInstance}
+        local removeConn = player.CharacterRemoving:Connect(function()
+            safeDisconnect(conn)
+            if billboard then pcall(function() billboard:Destroy() end) end
+            if highlightInstance then pcall(function() highlightInstance:Destroy() end) end
+            espObjects[player] = nil
+        end)
+
+        espObjects[player] = {
+            billboard = billboard,
+            connection = conn,
+            charConnection = nil,
+            highlight = highlightInstance,
+            removeConn = removeConn,
+            settingUp = false
+        }
     end
 
     local charConn = player.CharacterAdded:Connect(function(char)
         task.wait(0.05)
-        setupESP(char)
+        pcall(setupESP, char)
     end)
+
     if player.Character then
-        task.spawn(function() setupESP(player.Character) end)
+        task.spawn(function() pcall(setupESP, player.Character) end)
     end
+
     espObjects[player] = espObjects[player] or {}
     espObjects[player].charConnection = charConn
+    espObjects[player].settingUp = false
 end
 
 local function createGUI()
@@ -445,6 +515,26 @@ local function createGUI()
     addSlider("FOV Size", "FOV_Size", 50, 600, 0)
     addSlider("Smoothing", "Smoothing", 0.0, 1.0, 2)
 
+    frame.InputBegan:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+            local startPos = inp.Position
+            local guiStart = frame.Position
+            local connMove
+            connMove = UserInputService.InputChanged:Connect(function(m)
+                if m.UserInputType == Enum.UserInputType.MouseMovement then
+                    local delta = m.Position - startPos
+                    frame.Position = UDim2.new(guiStart.X.Scale, guiStart.X.Offset + delta.X, guiStart.Y.Scale, guiStart.Y.Offset + delta.Y)
+                end
+            end)
+            local connUp
+            connUp = UserInputService.InputEnded:Connect(function(m)
+                if m.UserInputType == Enum.UserInputType.MouseButton1 then
+                    safeDisconnect(connMove); safeDisconnect(connUp)
+                end
+            end)
+        end
+    end)
+
     local hideKeys = {Enum.KeyCode.H, Enum.KeyCode.G, Enum.KeyCode.LeftControl, Enum.KeyCode.LeftShift, Enum.KeyCode.LeftAlt}
     local hideIdx = 1
     for i,k in ipairs(hideKeys) do if k == Config.HideKey then hideIdx = i; break end end
@@ -506,14 +596,16 @@ for _, p in pairs(Players:GetPlayers()) do
         createESP(p)
     end
 end
+
 connections[#connections+1] = Players.PlayerAdded:Connect(function(p)
     if State.scriptRunning then
         createESP(p)
     end
 end)
+
 connections[#connections+1] = Players.PlayerRemoving:Connect(function(p)
     if espObjects[p] then
-        safeDisconnect(espObjects[p].connection); safeDisconnect(espObjects[p].charConnection)
+        safeDisconnect(espObjects[p].connection); safeDisconnect(espObjects[p].charConnection); safeDisconnect(espObjects[p].removeConn)
         if espObjects[p].billboard then pcall(function() espObjects[p].billboard:Destroy() end) end
         if espObjects[p].highlight then pcall(function() espObjects[p].highlight:Destroy() end) end
         espObjects[p] = nil
@@ -538,4 +630,4 @@ mainConnection = RunService.Heartbeat:Connect(function()
 end)
 
 createGUI(); handleInput()
-print("🎯 Aimbot + ESP v2 Loaded (SafeAim improved)")
+print("🎯 Aimbot + ESP v2 Loaded (SafeAim improved, stable ESP, drag GUI)")
