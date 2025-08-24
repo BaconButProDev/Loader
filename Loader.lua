@@ -101,6 +101,7 @@ end
 
 local AimbotBtn = createButton("🎯 Load Aimbot Script", 0.35)
 local PlaneBtn = createButton("✈️ Load Build a Plane Script", 0.65)
+local LuckyBlockBtn = createButton("🟨 Load Lucky Block Script", 0.85)
 
 local function closeGui()
     TweenService:Create(MainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
@@ -116,6 +117,11 @@ end)
 
 PlaneBtn.MouseButton1Click:Connect(function()
     loadstring(game:HttpGet("https://raw.githubusercontent.com/BaconButProDev/Loader/refs/heads/main/auto-buy.lua"))()
+    closeGui()
+end)
+
+LuckyBlockBtn.MouseButton1Click:Connect(function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/BaconButProDev/Loader/refs/heads/main/lucky-block.lua"))()
     closeGui()
 end)
 
