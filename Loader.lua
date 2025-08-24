@@ -4,10 +4,12 @@ local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
+-- Xóa GUI cũ nếu có
 if PlayerGui:FindFirstChild("CustomLoader") then
     PlayerGui.CustomLoader:Destroy()
 end
 
+-- Tạo ScreenGui
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "CustomLoader"
 ScreenGui.ResetOnSpawn = false
@@ -15,22 +17,16 @@ ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.DisplayOrder = 999
 ScreenGui.Parent = PlayerGui
 
+-- MainFrame
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 350, 0, 260)
-MainFrame.Position = UDim2.new(0.5, -175, 0.5, -130)
+MainFrame.Size = UDim2.new(0.35, 0, 0.55, 0) -- chiếm 35% ngang, 55% dọc (PC & mobile đều fit)
+MainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+MainFrame.AnchorPoint = Vector2.new(0.5,0.5)
 MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 MainFrame.BackgroundTransparency = 0.1
 MainFrame.BorderSizePixel = 0
 MainFrame.ClipsDescendants = true
 MainFrame.Parent = ScreenGui
-
-local function trySetZ(obj, z)
-    if pcall(function() return obj.ZIndex end) then
-        obj.ZIndex = z
-    end
-end
-
-trySetZ(MainFrame, 100)
 
 local Corner = Instance.new("UICorner")
 Corner.CornerRadius = UDim.new(0, 15)
@@ -41,6 +37,7 @@ Stroke.Thickness = 2
 Stroke.Color = Color3.fromRGB(100, 255, 150)
 Stroke.Parent = MainFrame
 
+-- Title
 local Title = Instance.new("TextLabel")
 Title.Text = "🚀 Script Loader"
 Title.Size = UDim2.new(1, -40, 0, 40)
@@ -49,37 +46,61 @@ Title.BackgroundTransparency = 1
 Title.Font = Enum.Font.GothamBold
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.TextStrokeTransparency = 0.8
-Title.TextSize = 20
+Title.TextSize = 22
 Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Parent = MainFrame
-trySetZ(Title, 110)
 
+-- Close Btn
 local CloseBtn = Instance.new("TextButton")
 CloseBtn.Text = "❌"
 CloseBtn.Size = UDim2.new(0, 40, 0, 40)
 CloseBtn.Position = UDim2.new(1, -40, 0, 0)
 CloseBtn.BackgroundTransparency = 1
 CloseBtn.TextColor3 = Color3.fromRGB(255, 80, 80)
-CloseBtn.TextSize = 20
+CloseBtn.TextSize = 22
 CloseBtn.Font = Enum.Font.GothamBold
 CloseBtn.Parent = MainFrame
-trySetZ(CloseBtn, 110)
 
-CloseBtn.MouseButton1Click:Connect(function()
+-- Scroll container (để chứa nút, không bị chật)
+local ScrollFrame = Instance.new("ScrollingFrame")
+ScrollFrame.Size = UDim2.new(1, -20, 1, -50)
+ScrollFrame.Position = UDim2.new(0, 10, 0, 45)
+ScrollFrame.BackgroundTransparency = 1
+ScrollFrame.ScrollBarThickness = 6
+ScrollFrame.CanvasSize = UDim2.new(0,0,0,0)
+ScrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+ScrollFrame.Parent = MainFrame
+
+-- Layout + Padding
+local Layout = Instance.new("UIListLayout")
+Layout.Padding = UDim.new(0,10)
+Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+Layout.SortOrder = Enum.SortOrder.LayoutOrder
+Layout.Parent = ScrollFrame
+
+local Padding = Instance.new("UIPadding")
+Padding.PaddingTop = UDim.new(0,5)
+Padding.PaddingBottom = UDim.new(0,5)
+Padding.Parent = ScrollFrame
+
+-- Close function
+local function closeGui()
     TweenService:Create(MainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
         {Size = UDim2.new(0,0,0,0), BackgroundTransparency = 1}):Play()
     wait(0.6)
     ScreenGui:Destroy()
-end)
+end
 
-local function createButton(text, posY)
+CloseBtn.MouseButton1Click:Connect(closeGui)
+
+-- Create Button
+local function createButton(text, url)
     local Button = Instance.new("TextButton")
-    Button.Size = UDim2.new(0.8, 0, 0, 50)
-    Button.Position = UDim2.new(0.1, 0, posY, 0)
+    Button.Size = UDim2.new(0.9, 0, 0, 45)
     Button.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
     Button.Text = text
     Button.Font = Enum.Font.GothamBold
-    Button.TextSize = 16
+    Button.TextSize = 18
     Button.TextColor3 = Color3.fromRGB(255, 255, 255)
     Button.TextStrokeTransparency = 0.8
 
@@ -92,48 +113,30 @@ local function createButton(text, posY)
     Stroke.Color = Color3.fromRGB(150, 150, 255)
     Stroke.Parent = Button
 
-    Button.Parent = MainFrame
-    trySetZ(Button, 105)
+    Button.Parent = ScrollFrame
+
+    Button.MouseButton1Click:Connect(function()
+        loadstring(game:HttpGet(url))()
+        closeGui()
+    end)
+
     return Button
 end
 
-local AimbotBtn = createButton("🎯 Load Aimbot Script", 0.20)
-local PlaneBtn = createButton("✈️ Load Build a Plane Script", 0.40)
-local LuckyBlockBtn = createButton("🟨 Load Lucky Block Script", 0.60)
-local BreakinBtn = createButton("🏠 Load Break In Roles Script", 0.80)
+-- Các script
+createButton("🎯 Load Aimbot Script", "https://raw.githubusercontent.com/BaconButProDev/Loader/refs/heads/main/aimbot.lua")
+createButton("✈️ Load Build a Plane Script", "https://raw.githubusercontent.com/BaconButProDev/Loader/refs/heads/main/auto-buy.lua")
+createButton("🟨 Load Lucky Block Script", "https://raw.githubusercontent.com/BaconButProDev/Loader/refs/heads/main/lucky-block.lua")
+createButton("🏠 Load Break In Roles Script", "https://raw.githubusercontent.com/BaconButProDev/Loader/refs/heads/main/Breakin1-role.lua")
+createButton("🪜 Load Stairs Battles Script", "https://raw.githubusercontent.com/BaconButProDev/Loader/refs/heads/main/Stair-Battles.lua")
 
-local function closeGui()
-    TweenService:Create(MainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-        {Size = UDim2.new(0,0,0,0), BackgroundTransparency = 1}):Play()
-    wait(0.6)
-    ScreenGui:Destroy()
-end
-
-AimbotBtn.MouseButton1Click:Connect(function()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/BaconButProDev/Loader/refs/heads/main/aimbot.lua"))()
-    closeGui()
-end)
-
-PlaneBtn.MouseButton1Click:Connect(function()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/BaconButProDev/Loader/refs/heads/main/auto-buy.lua"))()
-    closeGui()
-end)
-
-LuckyBlockBtn.MouseButton1Click:Connect(function()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/BaconButProDev/Loader/refs/heads/main/lucky-block.lua"))()
-    closeGui()
-end)
-
-BreakinBtn.MouseButton1Click:Connect(function()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/BaconButProDev/Loader/refs/heads/main/Breakin1-role.lua"))()
-    closeGui()
-end)
-
+-- Tween In
 MainFrame.Size = UDim2.new(0,0,0,0)
 local tweenIn = TweenService:Create(MainFrame, TweenInfo.new(0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-    {Size = UDim2.new(0,350,0,300)})
+    {Size = UDim2.new(0.35,0,0.55,0)})
 tweenIn:Play()
 
+-- Drag
 local dragging, dragInput, dragStart, startPos
 MainFrame.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -150,7 +153,7 @@ MainFrame.InputBegan:Connect(function(input)
 end)
 
 MainFrame.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement then
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
         dragInput = input
     end
 end)
