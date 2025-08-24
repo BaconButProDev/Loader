@@ -11,7 +11,7 @@ local blockItems = {
     "seat_1", "block_reinforced", "fuel_2", "tail_1",
     "wing_2", "block_metal", "fuel_3", "propeller_2",
     "balloon", "boost_1", "missile_1", "shield",
-    "tail_2"
+    "tail_2", "propeller_4"
 }
 local toolItems = { "Paint" }
 
