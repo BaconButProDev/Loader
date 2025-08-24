@@ -11,6 +11,10 @@ end
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "CustomLoader"
 ScreenGui.ResetOnSpawn = false
+
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.DisplayOrder = 999
+
 ScreenGui.Parent = PlayerGui
 
 local MainFrame = Instance.new("Frame")
@@ -21,6 +25,14 @@ MainFrame.BackgroundTransparency = 0.1
 MainFrame.BorderSizePixel = 0
 MainFrame.ClipsDescendants = true
 MainFrame.Parent = ScreenGui
+
+local function trySetZ(obj, z)
+    if pcall(function() return obj.ZIndex end) then
+        obj.ZIndex = z
+    end
+end
+
+trySetZ(MainFrame, 100)
 
 local Corner = Instance.new("UICorner")
 Corner.CornerRadius = UDim.new(0, 15)
@@ -38,10 +50,11 @@ Title.Position = UDim2.new(0, 10, 0, 0)
 Title.BackgroundTransparency = 1
 Title.Font = Enum.Font.GothamBold
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-Title.TextStrokeTransparency = 0.8 -- viền chữ cho rõ
+Title.TextStrokeTransparency = 0.8
 Title.TextSize = 20
 Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Parent = MainFrame
+trySetZ(Title, 110)
 
 local CloseBtn = Instance.new("TextButton")
 CloseBtn.Text = "❌"
@@ -52,6 +65,7 @@ CloseBtn.TextColor3 = Color3.fromRGB(255, 80, 80)
 CloseBtn.TextSize = 20
 CloseBtn.Font = Enum.Font.GothamBold
 CloseBtn.Parent = MainFrame
+trySetZ(CloseBtn, 110)
 
 CloseBtn.MouseButton1Click:Connect(function()
     TweenService:Create(MainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
@@ -69,7 +83,7 @@ local function createButton(text, posY)
     Button.Font = Enum.Font.GothamBold
     Button.TextSize = 16
     Button.TextColor3 = Color3.fromRGB(255, 255, 255)
-    Button.TextStrokeTransparency = 0.8 -- fix chữ mờ
+    Button.TextStrokeTransparency = 0.8
 
     local Corner = Instance.new("UICorner")
     Corner.CornerRadius = UDim.new(0, 10)
@@ -81,6 +95,7 @@ local function createButton(text, posY)
     Stroke.Parent = Button
 
     Button.Parent = MainFrame
+    trySetZ(Button, 105)
     return Button
 end
 
