@@ -50,20 +50,56 @@ local WinBtn = makeBtn("Auto Win: OFF", 160)
 local UIS = game:GetService("UserInputService")
 do
     local dragging, dragStart, startPos
-    Frame.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = true
-            dragStart = input.Position
-            startPos = Frame.Position
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then dragging = false end
-            end)
-        end
-    end)
-    UIS.InputChanged:Connect(function(input)
-        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+    local function startDrag(input)
+        dragging = true
+        dragStart = input.Position
+        startPos = Frame.Position
+    end
+    
+    local function updateDrag(input)
+        if dragging then
             local delta = input.Position - dragStart
             Frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end
+    
+    local function endDrag()
+        dragging = false
+    end
+    
+    Frame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            startDrag(input)
+        end
+    end)
+    
+    Frame.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            endDrag()
+        end
+    end)
+    
+    UIS.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement then
+            updateDrag(input)
+        end
+    end)
+    
+    Frame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch then
+            startDrag(input)
+        end
+    end)
+    
+    Frame.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch then
+            endDrag()
+        end
+    end)
+    
+    UIS.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch then
+            updateDrag(input)
         end
     end)
 end
@@ -130,10 +166,15 @@ local function quickTP(hrp, newPos, bursts)
     end
 end
 
+local function isInLobby()
+    return LocalPlayer.Team and LocalPlayer.Team.Name == "Lobby"
+end
+
 local AutoBlock, AutoStair, AutoMoney, AutoWin = false, false, false, false
+local AutoBlockTempDisabled, AutoStairTempDisabled = false, false
 
 local function doAutoBlock()
-    if not AutoBlock then return end
+    if not AutoBlock or AutoBlockTempDisabled then return end
     local hrp = getHRP()
     if not hrp then return end
 
@@ -201,11 +242,9 @@ end
 _G.__stairBackAnchor = _G.__stairBackAnchor or nil
 _G.__stairPrevMax = _G.__stairPrevMax or 0
 _G.__lastStairAction = _G.__lastStairAction or 0
-_G.__stairStuckTimer = _G.__stairStuckTimer or 0
-_G.__stairLastMax = _G.__stairLastMax or 0
 
 local function doAutoStair()
-    if not AutoStair then return end
+    if not AutoStair or AutoStairTempDisabled then return end
     local hrp = getHRP()
     if not hrp then return end
 
@@ -243,22 +282,8 @@ local function doAutoStair()
 
     local map, asc, desc, maxNum = collectBlocks(blocksFolder)
 
-    if maxNum > 504 then
-        if _G.__stairLastMax == maxNum then
-            _G.__stairStuckTimer = _G.__stairStuckTimer + 0.12
-            if _G.__stairStuckTimer > 3 then
-                AutoStair = false
-                StairBtn.Text = "Auto Build Stair: OFF"
-                StairBtn.BackgroundColor3 = Color3.fromRGB(150,0,0)
-                return
-            end
-        else
-            _G.__stairStuckTimer = 0
-            _G.__stairLastMax = maxNum
-        end
-    else
-        _G.__stairStuckTimer = 0
-        _G.__stairLastMax = maxNum
+    if maxNum >= 504 then
+        return
     end
 
     local lowerAnchor, firstMissing, upperNum = findFirstGap(asc)
@@ -361,8 +386,15 @@ local function doAutoMoney()
     end
 end
 
+local winInProgress = false
+
 local function doAutoWin()
-    if not AutoWin then return end
+    if not AutoWin or winInProgress then return end
+    
+    if isInLobby() then
+        return
+    end
+    
     local hrp = getHRP()
     if not hrp then return end
     
@@ -380,16 +412,44 @@ local function doAutoWin()
     end
 
     if blockCount >= 450 then
+        winInProgress = true
+        
+        AutoBlockTempDisabled = true
+        AutoStairTempDisabled = true
+        
         local ff = workspace:FindFirstChild("FunctionalFolder")
-        if not ff then return end
+        if not ff then 
+            winInProgress = false
+            AutoBlockTempDisabled = false
+            AutoStairTempDisabled = false
+            return 
+        end
         local trophy = ff:FindFirstChild("Trophy")
-        if not trophy then return end
+        if not trophy then 
+            winInProgress = false
+            AutoBlockTempDisabled = false
+            AutoStairTempDisabled = false
+            return 
+        end
         local touchPart = trophy:FindFirstChild("TouchPart")
         if touchPart and touchPart:IsA("BasePart") then
             quickTP(hrp, touchPart.Position + Vector3.new(0,3,0), 8)
-            AutoWin = false
-            WinBtn.Text = "Auto Win: OFF"
-            WinBtn.BackgroundColor3 = Color3.fromRGB(150,0,0)
+            
+            task.spawn(function()
+                local waitTime = 0
+                while not isInLobby() and waitTime < 30 do
+                    task.wait(1)
+                    waitTime = waitTime + 1
+                end
+                
+                winInProgress = false
+                AutoBlockTempDisabled = false
+                AutoStairTempDisabled = false
+            end)
+        else
+            winInProgress = false
+            AutoBlockTempDisabled = false
+            AutoStairTempDisabled = false
         end
     end
 end
@@ -408,9 +468,6 @@ StairBtn.MouseButton1Click:Connect(function()
     AutoStair = not AutoStair
     StairBtn.Text = "Auto Build Stair: " .. (AutoStair and "ON" or "OFF")
     setBtn(StairBtn, AutoStair)
-    if AutoStair then
-        _G.__stairStuckTimer = 0
-    end
 end)
 
 MoneyBtn.MouseButton1Click:Connect(function()
@@ -429,8 +486,6 @@ local function onCharacterAdded(character)
     _G.__stairBackAnchor = nil
     _G.__stairPrevMax = 0
     _G.__lastStairAction = 0
-    _G.__stairStuckTimer = 0
-    _G.__stairLastMax = 0
     
     character:WaitForChild("HumanoidRootPart")
     task.wait(1)
