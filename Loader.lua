@@ -16,7 +16,7 @@ ScreenGui.DisplayOrder = 999
 ScreenGui.Parent = PlayerGui
 
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0.35, 0, 0.55, 0)
+MainFrame.Size = UDim2.new(0.42, 0, 0.55, 0)
 MainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
 MainFrame.AnchorPoint = Vector2.new(0.5,0.5)
 MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
@@ -66,14 +66,14 @@ ScrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
 ScrollFrame.Parent = MainFrame
 
 local Layout = Instance.new("UIListLayout")
-Layout.Padding = UDim.new(0,10)
+Layout.Padding = UDim.new(0,12)
 Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 Layout.SortOrder = Enum.SortOrder.LayoutOrder
 Layout.Parent = ScrollFrame
 
 local Padding = Instance.new("UIPadding")
-Padding.PaddingTop = UDim.new(0,5)
-Padding.PaddingBottom = UDim.new(0,5)
+Padding.PaddingTop = UDim.new(0,8)
+Padding.PaddingBottom = UDim.new(0,8)
 Padding.Parent = ScrollFrame
 
 local function closeGui()
@@ -87,11 +87,11 @@ CloseBtn.MouseButton1Click:Connect(closeGui)
 
 local function createButton(text, url)
     local Button = Instance.new("TextButton")
-    Button.Size = UDim2.new(0.9, 0, 0, 45)
+    Button.Size = UDim2.new(0.92, 0, 0, 50)
     Button.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
     Button.Text = text
     Button.Font = Enum.Font.GothamBold
-    Button.TextSize = 18
+    Button.TextSize = 20
     Button.TextColor3 = Color3.fromRGB(255, 255, 255)
     Button.TextStrokeTransparency = 0.8
 
@@ -120,10 +120,11 @@ createButton("🟨 Load Lucky Block Script", "https://raw.githubusercontent.com/
 createButton("🏠 Load Break In Roles Script", "https://raw.githubusercontent.com/BaconButProDev/Loader/refs/heads/main/Breakin1-role.lua")
 createButton("🪜 Load Stairs Battles Script", "https://raw.githubusercontent.com/BaconButProDev/Loader/refs/heads/main/Stair-Battles.lua")
 createButton("👣 Load Follow Player Script", "https://raw.githubusercontent.com/BaconButProDev/Loader/refs/heads/main/follow-player.lua")
+createButton("🌍 Load Be A Country Script", "https://raw.githubusercontent.com/BaconButProDev/Loader/main/be-agay.lua")
 
 MainFrame.Size = UDim2.new(0,0,0,0)
 local tweenIn = TweenService:Create(MainFrame, TweenInfo.new(0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-    {Size = UDim2.new(0.35,0,0.55,0)})
+    {Size = UDim2.new(0.42,0,0.55,0)})
 tweenIn:Play()
 
 local dragging, dragInput, dragStart, startPos
