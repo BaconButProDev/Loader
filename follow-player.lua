@@ -13,7 +13,7 @@ ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = PlayerGui
 
 local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 300, 0, 280)
+Frame.Size = UDim2.new(0, 300, 0, 320)  -- Tăng chiều cao để chứa thêm textbox
 Frame.Position = UDim2.new(0.5, -150, 0.1, 0)
 Frame.BackgroundColor3 = Color3.fromRGB(30,30,30)
 Frame.BorderSizePixel = 0
@@ -76,10 +76,22 @@ BehindBox.BackgroundColor3 = Color3.fromRGB(255,255,255)
 BehindBox.Parent = Frame
 Instance.new("UICorner", BehindBox).CornerRadius = UDim.new(0, 8)
 
+-- Thêm textbox cho khoảng cách Under
+local UnderBox = Instance.new("TextBox")
+UnderBox.PlaceholderText = "Under (studs)"
+UnderBox.Size = UDim2.new(0.5, -15, 0, 30)
+UnderBox.Position = UDim2.new(0.5, 5, 0, 80)
+UnderBox.Text = "5"
+UnderBox.TextSize = 16
+UnderBox.TextColor3 = Color3.fromRGB(0,0,0)
+UnderBox.BackgroundColor3 = Color3.fromRGB(255,255,255)
+UnderBox.Parent = Frame
+Instance.new("UICorner", UnderBox).CornerRadius = UDim.new(0, 8)
+
 local UnderBtn = Instance.new("TextButton")
 UnderBtn.Text = "Under: OFF"
 UnderBtn.Size = UDim2.new(0.5, -15, 0, 30)
-UnderBtn.Position = UDim2.new(0.5, 5, 0, 80)
+UnderBtn.Position = UDim2.new(0, 10, 0, 120)
 UnderBtn.TextColor3 = Color3.fromRGB(255,255,255)
 UnderBtn.Font = Enum.Font.GothamBold
 UnderBtn.TextSize = 16
@@ -90,7 +102,7 @@ Instance.new("UICorner", UnderBtn).CornerRadius = UDim.new(0, 8)
 local NoclipBtn = Instance.new("TextButton")
 NoclipBtn.Text = "Noclip: ON"
 NoclipBtn.Size = UDim2.new(0.5, -15, 0, 30)
-NoclipBtn.Position = UDim2.new(0, 10, 0, 120)
+NoclipBtn.Position = UDim2.new(0.5, 5, 0, 120)
 NoclipBtn.TextColor3 = Color3.fromRGB(255,255,255)
 NoclipBtn.Font = Enum.Font.GothamBold
 NoclipBtn.TextSize = 16
@@ -100,8 +112,8 @@ Instance.new("UICorner", NoclipBtn).CornerRadius = UDim.new(0, 8)
 
 local SafeHPBtn = Instance.new("TextButton")
 SafeHPBtn.Text = "Safe HP: OFF"
-SafeHPBtn.Size = UDim2.new(0.5, -15, 0, 30)
-SafeHPBtn.Position = UDim2.new(0.5, 5, 0, 120)
+SafeHPBtn.Size = UDim2.new(1, -20, 0, 30)
+SafeHPBtn.Position = UDim2.new(0, 10, 0, 160)
 SafeHPBtn.TextColor3 = Color3.fromRGB(255,255,255)
 SafeHPBtn.Font = Enum.Font.GothamBold
 SafeHPBtn.TextSize = 16
@@ -112,7 +124,7 @@ Instance.new("UICorner", SafeHPBtn).CornerRadius = UDim.new(0, 8)
 local StartBtn = Instance.new("TextButton")
 StartBtn.Text = "▶ Start Follow"
 StartBtn.Size = UDim2.new(1, -20, 0, 30)
-StartBtn.Position = UDim2.new(0, 10, 0, 160)
+StartBtn.Position = UDim2.new(0, 10, 0, 200)
 StartBtn.TextColor3 = Color3.fromRGB(255,255,255)
 StartBtn.Font = Enum.Font.GothamBold
 StartBtn.TextSize = 16
@@ -123,7 +135,7 @@ Instance.new("UICorner", StartBtn).CornerRadius = UDim.new(0, 8)
 local StopBtn = Instance.new("TextButton")
 StopBtn.Text = "⏹ Stop Follow"
 StopBtn.Size = UDim2.new(1, -20, 0, 30)
-StopBtn.Position = UDim2.new(0, 10, 0, 200)
+StopBtn.Position = UDim2.new(0, 10, 0, 240)
 StopBtn.TextColor3 = Color3.fromRGB(255,255,255)
 StopBtn.Font = Enum.Font.GothamBold
 StopBtn.TextSize = 16
@@ -134,7 +146,7 @@ Instance.new("UICorner", StopBtn).CornerRadius = UDim.new(0, 8)
 local DeleteBtn = Instance.new("TextButton")
 DeleteBtn.Text = "❌ Delete GUI"
 DeleteBtn.Size = UDim2.new(1, -20, 0, 30)
-DeleteBtn.Position = UDim2.new(0, 10, 0, 240)
+DeleteBtn.Position = UDim2.new(0, 10, 0, 280)
 DeleteBtn.TextColor3 = Color3.fromRGB(255,255,255)
 DeleteBtn.Font = Enum.Font.GothamBold
 DeleteBtn.TextSize = 16
@@ -218,8 +230,12 @@ local function followPlayer(player)
             if myChar and myChar:FindFirstChild("HumanoidRootPart") then
                 local myHRP = myChar.HumanoidRootPart
                 if UnderMode then
-                    local underPos = hrp.Position - Vector3.new(0, 5, 0)
-                    myHRP.CFrame = CFrame.new(underPos, hrp.Position) * CFrame.Angles(math.rad(90), 0, 0)
+                    local underDist = tonumber(UnderBox.Text) or 5
+                    local underPos = hrp.Position - Vector3.new(0, underDist, 0)
+                    -- Đặt character ở dưới và nhìn lên target
+                    -- Tạo CFrame nhìn từ underPos lên hrp.Position, sau đó xoay 90 độ để nằm ngang
+                    local lookCFrame = CFrame.lookAt(underPos, hrp.Position)
+                    myHRP.CFrame = lookCFrame * CFrame.Angles(math.rad(-90), 0, 0)
                 else
                     local dist = tonumber(BehindBox.Text) or 3
                     local backPos = hrp.Position - (hrp.CFrame.LookVector * dist)
