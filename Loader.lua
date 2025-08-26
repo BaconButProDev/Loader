@@ -16,9 +16,9 @@ ScreenGui.DisplayOrder = 999
 ScreenGui.Parent = PlayerGui
 
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0.42, 0, 0.55, 0)
+MainFrame.Size = UDim2.new(0, 420, 0, 480)
 MainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
-MainFrame.AnchorPoint = Vector2.new(0.5,0.5)
+MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 MainFrame.BackgroundTransparency = 0.1
 MainFrame.BorderSizePixel = 0
@@ -36,49 +36,49 @@ Stroke.Parent = MainFrame
 
 local Title = Instance.new("TextLabel")
 Title.Text = "🚀 Script Loader"
-Title.Size = UDim2.new(1, -40, 0, 40)
-Title.Position = UDim2.new(0, 10, 0, 0)
+Title.Size = UDim2.new(1, -50, 0, 40)
+Title.Position = UDim2.new(0, 15, 0, 5)
 Title.BackgroundTransparency = 1
 Title.Font = Enum.Font.GothamBold
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.TextStrokeTransparency = 0.8
-Title.TextSize = 22
+Title.TextSize = 18
 Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Parent = MainFrame
 
 local CloseBtn = Instance.new("TextButton")
 CloseBtn.Text = "❌"
-CloseBtn.Size = UDim2.new(0, 40, 0, 40)
-CloseBtn.Position = UDim2.new(1, -40, 0, 0)
+CloseBtn.Size = UDim2.new(0, 35, 0, 35)
+CloseBtn.Position = UDim2.new(1, -40, 0, 5)
 CloseBtn.BackgroundTransparency = 1
 CloseBtn.TextColor3 = Color3.fromRGB(255, 80, 80)
-CloseBtn.TextSize = 22
+CloseBtn.TextSize = 18
 CloseBtn.Font = Enum.Font.GothamBold
 CloseBtn.Parent = MainFrame
 
 local ScrollFrame = Instance.new("ScrollingFrame")
-ScrollFrame.Size = UDim2.new(1, -20, 1, -50)
+ScrollFrame.Size = UDim2.new(1, -20, 1, -55)
 ScrollFrame.Position = UDim2.new(0, 10, 0, 45)
 ScrollFrame.BackgroundTransparency = 1
-ScrollFrame.ScrollBarThickness = 6
-ScrollFrame.CanvasSize = UDim2.new(0,0,0,0)
+ScrollFrame.ScrollBarThickness = 4
+ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
 ScrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
 ScrollFrame.Parent = MainFrame
 
 local Layout = Instance.new("UIListLayout")
-Layout.Padding = UDim.new(0,12)
+Layout.Padding = UDim.new(0, 8)
 Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 Layout.SortOrder = Enum.SortOrder.LayoutOrder
 Layout.Parent = ScrollFrame
 
 local Padding = Instance.new("UIPadding")
-Padding.PaddingTop = UDim.new(0,8)
-Padding.PaddingBottom = UDim.new(0,8)
+Padding.PaddingTop = UDim.new(0, 5)
+Padding.PaddingBottom = UDim.new(0, 5)
 Padding.Parent = ScrollFrame
 
 local function closeGui()
     TweenService:Create(MainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-        {Size = UDim2.new(0,0,0,0), BackgroundTransparency = 1}):Play()
+        {Size = UDim2.new(0, 0, 0, 0), BackgroundTransparency = 1}):Play()
     task.wait(0.6)
     ScreenGui:Destroy()
 end
@@ -87,16 +87,16 @@ CloseBtn.MouseButton1Click:Connect(closeGui)
 
 local function createButton(text, url)
     local Button = Instance.new("TextButton")
-    Button.Size = UDim2.new(0.92, 0, 0, 50)
+    Button.Size = UDim2.new(0.95, 0, 0, 42)
     Button.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
     Button.Text = text
     Button.Font = Enum.Font.GothamBold
-    Button.TextSize = 20
+    Button.TextSize = 16
     Button.TextColor3 = Color3.fromRGB(255, 255, 255)
     Button.TextStrokeTransparency = 0.8
 
     local Corner = Instance.new("UICorner")
-    Corner.CornerRadius = UDim.new(0, 10)
+    Corner.CornerRadius = UDim.new(0, 8)
     Corner.Parent = Button
 
     local Stroke = Instance.new("UIStroke")
@@ -121,10 +121,11 @@ createButton("🏠 Load Break In Roles Script", "https://raw.githubusercontent.c
 createButton("🪜 Load Stairs Battles Script", "https://raw.githubusercontent.com/BaconButProDev/Loader/refs/heads/main/Stair-Battles.lua")
 createButton("👣 Load Follow Player Script", "https://raw.githubusercontent.com/BaconButProDev/Loader/refs/heads/main/follow-player.lua")
 createButton("🌍 Load Be A Country Script", "https://raw.githubusercontent.com/BaconButProDev/Loader/main/be-agay.lua")
+createButton("🕹️ Load No Jump Obby Script", "https://raw.githubusercontent.com/BaconButProDev/Loader/main/no-jump.lua")
 
-MainFrame.Size = UDim2.new(0,0,0,0)
+MainFrame.Size = UDim2.new(0, 0, 0, 0)
 local tweenIn = TweenService:Create(MainFrame, TweenInfo.new(0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-    {Size = UDim2.new(0.42,0,0.55,0)})
+    {Size = UDim2.new(0, 420, 0, 480)})
 tweenIn:Play()
 
 local dragging, dragInput, dragStart, startPos
