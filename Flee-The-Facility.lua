@@ -121,9 +121,17 @@ end
 
 local function fireEKey()
     pcall(function()
-        keyclick(0x45)
+        local inputObj = {
+            KeyCode = Enum.KeyCode.E,
+            UserInputType = Enum.UserInputType.Keyboard,
+            UserInputState = Enum.UserInputState.Begin,
+        }
+        for _, conn in ipairs(getconnections(UserInputService.InputBegan)) do
+            pcall(function() conn:Fire(inputObj, false) end)
+        end
     end)
 end
+
 
 local function startAutoComputer()
     if autoComputerLoop then return end
