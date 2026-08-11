@@ -122,7 +122,7 @@ end
 local function fireEKey()
     if isMobile then
         -- Tìm ContextActionButton đầu tiên trong ContextButtonFrame của player
-        local pg = LocalPlayer:FindFirstChild("PlayerGui")
+        local pg = Players[LocalPlayer.Name]:FindFirstChild("PlayerGui")
         local contextGui = pg and pg:FindFirstChild("ContextActionGui")
         local frame = contextGui and contextGui:FindFirstChild("ContextButtonFrame")
         if frame then
