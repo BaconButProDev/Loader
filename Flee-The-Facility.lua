@@ -119,93 +119,14 @@ local function isPinInBase(pin, base)
     return pinAngle >= baseStart or pinAngle <= baseEnd
 end
 
--- Tìm ProximityPrompt gần nhất trong tầm tương tác
-local function findNearbyProximityPrompt()
-    local hrp = getHRP()
-    if not hrp then return nil end
-    local bestPrompt, bestDist = nil, math.huge
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj:IsA("ProximityPrompt") and obj.Enabled then
-            local part = obj.Parent
-            if part and part:IsA("BasePart") then
-                local dist = (part.Position - hrp.Position).Magnitude
-                if dist < (obj.MaxActivationDistance + 2) and dist < bestDist then
-                    bestDist  = dist
-                    bestPrompt = obj
-                end
-            end
-        end
-    end
-    return bestPrompt
-end
-
 local function fireEKey()
-    -- Ưu tiên trigger ProximityPrompt trực tiếp – không đụng phím E hay CAS
-    -- (CAS:BindAction override sẽ xóa nút nhảy / nút E trên mobile)
-    local prompt = findNearbyProximityPrompt()
-    if prompt then
-        -- TriggerPrompt hoạt động cả PC lẫn mobile, không ảnh hưởng UI
-        local ok = pcall(function()
-            fireclickdetector(prompt) -- fallback nếu FireProximityPrompt không tồn tại
-        end)
-        -- Cách chính xác nhất: gọi thẳng vào fired signal
-        pcall(function()
-            prompt.TriggerEnded:Fire()
-        end)
-        pcall(function()
-            prompt.Triggered:Fire(game:GetService("Players").LocalPlayer)
-        end)
-        return
-    end
-
-    -- Fallback PC-only: VIM không cần CAS binding
     local VIM = game:GetService("VirtualInputManager")
+    -- Gửi trực tiếp phím E xuống hệ thống mà không cần BindAction qua CAS
     pcall(function()
-        VIM:SendKeyEvent(true,  Enum.KeyCode.E, false, game)
-        task.wait(0.08)
+        VIM:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+        task.wait(0.05)
         VIM:SendKeyEvent(false, Enum.KeyCode.E, false, game)
     end)
-end
-
--- Tìm ProximityPrompt thuộc ComputerTable gần nhất
-local function findComputerPrompt()
-    local hrp = getHRP()
-    if not hrp then return nil end
-    local best, bestDist = nil, math.huge
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj:IsA("ProximityPrompt") and obj.Enabled then
-            -- Đi ngược lên tìm model cha là ComputerTable
-            local ancestor = obj.Parent
-            while ancestor and ancestor ~= Workspace do
-                if ancestor:IsA("Model") and ancestor.Name == "ComputerTable" then
-                    local pp = ancestor.PrimaryPart or ancestor:FindFirstChildWhichIsA("BasePart")
-                    if pp then
-                        local dist = (pp.Position - hrp.Position).Magnitude
-                        if dist < 20 and dist < bestDist then
-                            bestDist = dist
-                            best = obj
-                        end
-                    end
-                    break
-                end
-                ancestor = ancestor.Parent
-            end
-        end
-    end
-    return best
-end
-
-local function triggerComputerAction()
-    -- 1) Thử ProximityPrompt của ComputerTable
-    local compPrompt = findComputerPrompt()
-    if compPrompt then
-        pcall(function()
-            compPrompt.Triggered:Fire(game:GetService("Players").LocalPlayer)
-        end)
-        return
-    end
-    -- 2) Fallback: bất kỳ ProximityPrompt nào gần đó
-    fireEKey()
 end
 
 local function startAutoComputer()
@@ -230,7 +151,7 @@ local function startAutoComputer()
                 pcall(function()
                     if isPinInBase(pin, base) then
                         autoComputerFired = true
-                        pcall(triggerComputerAction)
+                        pcall(fireEKey)
                         task.wait(1.5)
                     end
                 end)
