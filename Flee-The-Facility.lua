@@ -100,7 +100,7 @@ local function removeTag(obj, tag, tbl)
     if tbl then tbl[obj] = nil end
 end
 
--- ─────────────────── Auto Computer ──────────────────────────────────────────
+-- ─────────────────── Auto Computer (MOBILE FIX CHO DELTA) ───────────────────
 
 local function findTimingCircle()
     local pg = LocalPlayer:FindFirstChild("PlayerGui")
@@ -122,40 +122,37 @@ end
 local function fireEKey()
     local VIM = game:GetService("VirtualInputManager")
     if isMobile then
-        -- FIXED: Tìm trực tiếp nút E ảo của game trên Mobile để click thay vì gửi phím ảo (tránh lỗi ẩn TouchGui)
+        local success = false
+        
+        -- CÁCH 1: Dùng getconnections can thiệp trực tiếp (Delta cực kì thích cái này)
         local pg = LocalPlayer:FindFirstChild("PlayerGui")
         local casGui = pg and pg:FindFirstChild("ContextActionGui")
-        local actionBtn = nil
-        
         if casGui then
             for _, v in ipairs(casGui:GetDescendants()) do
                 if (v:IsA("ImageButton") or v:IsA("TextButton")) and v.Visible then
-                    actionBtn = v
-                    break
+                    -- Bắn signal trực tiếp bằng hàm của executor
+                    if type(getconnections) == "function" then
+                        for _, conn in ipairs(getconnections(v.MouseButton1Click) or {}) do pcall(conn.Function) end
+                        for _, conn in ipairs(getconnections(v.TouchTap) or {}) do pcall(conn.Function) end
+                        success = true
+                    end
+                    if type(firesignal) == "function" then
+                        pcall(function() firesignal(v.TouchTap) end)
+                        pcall(function() firesignal(v.MouseButton1Click) end)
+                        success = true
+                    end
+                    if success then break end
                 end
             end
         end
         
-        if actionBtn then
-            -- Thử dùng hàm firesignal của Executor nếu có (mượt và an toàn nhất)
-            if typeof(firesignal) == "function" then
-                pcall(function()
-                    firesignal(actionBtn.MouseButton1Down)
-                    firesignal(actionBtn.MouseButton1Click)
-                end)
-            else
-                -- Fallback: Dùng VIM click giả lập chuột vào tọa độ của nút (cộng 36px offset do Topbar)
-                local pos = actionBtn.AbsolutePosition + (actionBtn.AbsoluteSize / 2)
-                VIM:SendMouseButtonEvent(pos.X, pos.Y + 36, 0, true, game, 1)
-                task.wait(0.05)
-                VIM:SendMouseButtonEvent(pos.X, pos.Y + 36, 0, false, game, 1)
-            end
-        else
-            -- Fallback dự phòng: Click vào chính giữa màn hình (thường vẫn bắt được hit timing trên mobile)
+        -- CÁCH 2: Backup nếu không tìm thấy nút - Bắn tín hiệu "Touch" thật lên giữa màn hình
+        if not success then
             local cx, cy = screenSize.X / 2, screenSize.Y / 2
-            VIM:SendMouseButtonEvent(cx, cy, 0, true, game, 1)
+            -- 0 = Ngón tay chạm vào (Began), 2 = Ngón tay nhả ra (Ended). ID 12345 để không bị lặp.
+            pcall(function() VIM:SendTouchEvent(12345, 0, cx, cy) end)
             task.wait(0.05)
-            VIM:SendMouseButtonEvent(cx, cy, 0, false, game, 1)
+            pcall(function() VIM:SendTouchEvent(12345, 2, cx, cy) end)
         end
     else
         VIM:SendKeyEvent(true,  Enum.KeyCode.E, false, game)
@@ -368,15 +365,13 @@ end)
 
 -- ─────────────────── Teleport ────────────────────────────────────────────────
 
--- Đếm số hướng open (không trúng tường) từ một vị trí candidate
--- Candidate nào có nhiều open space nhất thì chọn → tránh bị kẹt tường
 local PROBE_DIRS = {
     Vector3.new( 1, 0,  0),
     Vector3.new(-1, 0,  0),
     Vector3.new( 0, 0,  1),
     Vector3.new( 0, 0, -1),
 }
-local PROBE_DIST = 2.5  -- khoảng cách probe từ candidate ra 4 hướng
+local PROBE_DIST = 2.5 
 
 local function scoreOpenSpace(pos, rayParams)
     local score = 0
@@ -396,7 +391,6 @@ local function findSafePositionInFront(targetCF)
     rayParams.FilterDescendantsInstances = {char}
     rayParams.FilterType = Enum.RaycastFilterType.Exclude
 
-    -- 4 hướng quanh target × 3 khoảng cách = 12 ứng viên
     local dirs = {targetCF.LookVector, -targetCF.LookVector, targetCF.RightVector, -targetCF.RightVector}
     local bestCF, bestScore = nil, -1
 
@@ -405,16 +399,13 @@ local function findSafePositionInFront(targetCF)
             local origin = targetCF.Position + Vector3.new(0, 1.5, 0)
             local cand   = origin + dir * dist
 
-            -- Kiểm tra không có tường giữa target và candidate
             if not Workspace:Raycast(origin, dir * dist, rayParams) then
-                -- Kiểm tra có sàn phía dưới
                 local down = Workspace:Raycast(cand + Vector3.new(0, 2, 0), Vector3.new(0, -5, 0), rayParams)
                 if down then
                     local landPos = down.Position + Vector3.new(0, 3, 0)
                     local score   = scoreOpenSpace(landPos, rayParams)
                     if score > bestScore then
                         bestScore = score
-                        -- Nhân vật nhìn về phía computer (ngược dir)
                         bestCF = CFrame.new(landPos, landPos - dir)
                     end
                 end
