@@ -119,15 +119,9 @@ local function isPinInBase(pin, base)
     return pinAngle >= baseStart or pinAngle <= baseEnd
 end
 
-local Keyvirtual = function(key)
-    keypress(key)
-    task.wait(0.1)
-    keyrelease(key)
-end
-
 local function fireEKey()
     pcall(function()
-        Keyvirtual(0x45)
+        keyclick(0x45)
     end)
 end
 
