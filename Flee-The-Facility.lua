@@ -119,20 +119,11 @@ local function isPinInBase(pin, base)
     return pinAngle >= baseStart or pinAngle <= baseEnd
 end
 
-local function fireEKey()
-    local VIM = game:GetService("VirtualInputManager")
-    if isMobile then
-        local CAS = game:GetService("ContextActionService")
-        CAS:BindAction("__BaconAutoE", function() end, false, Enum.KeyCode.E)
-        VIM:SendKeyEvent(true,  Enum.KeyCode.E, false, game)
-        task.wait(0.1)
-        VIM:SendKeyEvent(false, Enum.KeyCode.E, false, game)
-        CAS:UnbindAction("__BaconAutoE")
-    else
-        VIM:SendKeyEvent(true,  Enum.KeyCode.E, false, game)
-        task.wait(0.1)
-        VIM:SendKeyEvent(false, Enum.KeyCode.E, false, game)
-    end
+local function fireComputer()
+    local Event = game:GetService("ReplicatedStorage").RemoteEvent
+    Event:FireServer("Input", "Action", true)
+    task.wait(0.3)
+    Event:FireServer("Input", "Action", false)
 end
 
 local function startAutoComputer()
@@ -157,7 +148,7 @@ local function startAutoComputer()
                 pcall(function()
                     if isPinInBase(pin, base) then
                         autoComputerFired = true
-                        pcall(fireEKey)
+                        pcall(fireComputer)
                         task.wait(1.5)
                     end
                 end)
