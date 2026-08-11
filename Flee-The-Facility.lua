@@ -40,8 +40,7 @@ local C = {
     CLOSET    = Color3.fromRGB(180, 100, 255),
 }
 
--- Không dùng isMobile nữa — executor mobile báo KeyboardEnabled = true nhầm
--- Toàn bộ input dùng ProximityPrompt trực tiếp, không phân nhánh PC/mobile
+local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
 -- ESP colors
 local HIGHLIGHT_COLOR = Color3.fromRGB(0, 255, 170)
@@ -120,65 +119,49 @@ local function isPinInBase(pin, base)
     return pinAngle >= baseStart or pinAngle <= baseEnd
 end
 
--- Tìm ProximityPrompt gần nhất (ưu tiên thuộc ComputerTable)
-local function findBestPrompt()
-    local hrp = getHRP()
-    if not hrp then return nil end
-    local hrpPos = hrp.Position
-
-    local bestComputer, bestOther = nil, nil
-    local distComp, distOther = math.huge, math.huge
-
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj:IsA("ProximityPrompt") and obj.Enabled then
-            local part = obj.Parent
-            if part and part:IsA("BasePart") then
-                local dist = (part.Position - hrpPos).Magnitude
-                local maxDist = obj.MaxActivationDistance + 3
-
-                if dist < maxDist then
-                    -- Kiểm tra xem có thuộc ComputerTable không
-                    local isComp = false
-                    local anc = part.Parent
-                    while anc and anc ~= Workspace do
-                        if anc:IsA("Model") and anc.Name == "ComputerTable" then
-                            isComp = true break
-                        end
-                        anc = anc.Parent
-                    end
-
-                    if isComp and dist < distComp then
-                        distComp = dist
-                        bestComputer = obj
-                    elseif not isComp and dist < distOther then
-                        distOther = dist
-                        bestOther = obj
-                    end
+local function fireEKey()
+    local VIM = game:GetService("VirtualInputManager")
+    if isMobile then
+        -- FIXED: Tìm trực tiếp nút E ảo của game trên Mobile để click thay vì gửi phím ảo (tránh lỗi ẩn TouchGui)
+        local pg = LocalPlayer:FindFirstChild("PlayerGui")
+        local casGui = pg and pg:FindFirstChild("ContextActionGui")
+        local actionBtn = nil
+        
+        if casGui then
+            for _, v in ipairs(casGui:GetDescendants()) do
+                if (v:IsA("ImageButton") or v:IsA("TextButton")) and v.Visible then
+                    actionBtn = v
+                    break
                 end
             end
         end
+        
+        if actionBtn then
+            -- Thử dùng hàm firesignal của Executor nếu có (mượt và an toàn nhất)
+            if typeof(firesignal) == "function" then
+                pcall(function()
+                    firesignal(actionBtn.MouseButton1Down)
+                    firesignal(actionBtn.MouseButton1Click)
+                end)
+            else
+                -- Fallback: Dùng VIM click giả lập chuột vào tọa độ của nút (cộng 36px offset do Topbar)
+                local pos = actionBtn.AbsolutePosition + (actionBtn.AbsoluteSize / 2)
+                VIM:SendMouseButtonEvent(pos.X, pos.Y + 36, 0, true, game, 1)
+                task.wait(0.05)
+                VIM:SendMouseButtonEvent(pos.X, pos.Y + 36, 0, false, game, 1)
+            end
+        else
+            -- Fallback dự phòng: Click vào chính giữa màn hình (thường vẫn bắt được hit timing trên mobile)
+            local cx, cy = screenSize.X / 2, screenSize.Y / 2
+            VIM:SendMouseButtonEvent(cx, cy, 0, true, game, 1)
+            task.wait(0.05)
+            VIM:SendMouseButtonEvent(cx, cy, 0, false, game, 1)
+        end
+    else
+        VIM:SendKeyEvent(true,  Enum.KeyCode.E, false, game)
+        task.wait(0.1)
+        VIM:SendKeyEvent(false, Enum.KeyCode.E, false, game)
     end
-
-    return bestComputer or bestOther
-end
-
--- Trigger ProximityPrompt — dùng fireproximityprompt (API executor) là chuẩn nhất
--- Không đụng VIM, không đụng CAS → nút nhảy/E/C trên mobile không bị mất
-local function triggerPrompt(prompt)
-    if not prompt then return end
-    -- fireproximityprompt là hàm executor (Delta, Arceus X, Fluxus đều có)
-    local ok = pcall(fireproximityprompt, prompt)
-    if not ok then
-        -- Fallback nếu executor không có fireproximityprompt
-        pcall(function()
-            prompt.Triggered:Fire(LocalPlayer)
-        end)
-    end
-end
-
-local function triggerComputerAction()
-    local prompt = findBestPrompt()
-    triggerPrompt(prompt)
 end
 
 local function startAutoComputer()
@@ -200,11 +183,13 @@ local function startAutoComputer()
             local base = tc:FindFirstChild("TimingBase", true)
             local pin  = tc:FindFirstChild("TimingPin", true)
             if base and pin and not autoComputerFired then
-                if isPinInBase(pin, base) then
-                    autoComputerFired = true
-                    pcall(triggerComputerAction)
-                    task.wait(1.5)
-                end
+                pcall(function()
+                    if isPinInBase(pin, base) then
+                        autoComputerFired = true
+                        pcall(fireEKey)
+                        task.wait(1.5)
+                    end
+                end)
             end
             task.wait(0.03)
         end
@@ -376,20 +361,22 @@ local function enableClosetESP()    closetEspEnabled = true;    closetESP:enable
 local function disableClosetESP()   closetEspEnabled = false;   closetESP:disable()end
 
 Workspace.DescendantAdded:Connect(function(obj)
-    if espEnabled         then task.defer(applyHighlight, obj) end
-    if closetEspEnabled   and obj:IsA("Model") and obj.Name == "Closet"   then task.defer(closetESP.apply, obj) end
-    if exitDoorEspEnabled and obj:IsA("Model") and obj.Name == "ExitDoor" then task.defer(exitESP.apply, obj)   end
+    if espEnabled      then task.defer(applyHighlight, obj) end
+    if closetEspEnabled   and obj:IsA("Model") and obj.Name == "Closet"    then task.defer(closetESP.apply, obj) end
+    if exitDoorEspEnabled and obj:IsA("Model") and obj.Name == "ExitDoor"  then task.defer(exitESP.apply, obj) end
 end)
 
 -- ─────────────────── Teleport ────────────────────────────────────────────────
 
+-- Đếm số hướng open (không trúng tường) từ một vị trí candidate
+-- Candidate nào có nhiều open space nhất thì chọn → tránh bị kẹt tường
 local PROBE_DIRS = {
     Vector3.new( 1, 0,  0),
     Vector3.new(-1, 0,  0),
     Vector3.new( 0, 0,  1),
     Vector3.new( 0, 0, -1),
 }
-local PROBE_DIST = 2.5
+local PROBE_DIST = 2.5  -- khoảng cách probe từ candidate ra 4 hướng
 
 local function scoreOpenSpace(pos, rayParams)
     local score = 0
@@ -409,6 +396,7 @@ local function findSafePositionInFront(targetCF)
     rayParams.FilterDescendantsInstances = {char}
     rayParams.FilterType = Enum.RaycastFilterType.Exclude
 
+    -- 4 hướng quanh target × 3 khoảng cách = 12 ứng viên
     local dirs = {targetCF.LookVector, -targetCF.LookVector, targetCF.RightVector, -targetCF.RightVector}
     local bestCF, bestScore = nil, -1
 
@@ -416,13 +404,17 @@ local function findSafePositionInFront(targetCF)
         for _, dir in ipairs(dirs) do
             local origin = targetCF.Position + Vector3.new(0, 1.5, 0)
             local cand   = origin + dir * dist
+
+            -- Kiểm tra không có tường giữa target và candidate
             if not Workspace:Raycast(origin, dir * dist, rayParams) then
+                -- Kiểm tra có sàn phía dưới
                 local down = Workspace:Raycast(cand + Vector3.new(0, 2, 0), Vector3.new(0, -5, 0), rayParams)
                 if down then
                     local landPos = down.Position + Vector3.new(0, 3, 0)
                     local score   = scoreOpenSpace(landPos, rayParams)
                     if score > bestScore then
                         bestScore = score
+                        -- Nhân vật nhìn về phía computer (ngược dir)
                         bestCF = CFrame.new(landPos, landPos - dir)
                     end
                 end
