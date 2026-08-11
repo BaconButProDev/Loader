@@ -127,24 +127,8 @@ local function fireEKey()
         local frame = contextGui and contextGui:FindFirstChild("ContextButtonFrame")
         if frame then
             local btn = frame:FindFirstChild("ContextActionButton")
-            if btn and btn:IsA("ImageButton") then
-                -- Giả lập tap vào giữa button
-                local pos = btn.AbsolutePosition + btn.AbsoluteSize / 2
-                local inputObj = InputObject.new(
-                    Enum.UserInputType.Touch,
-                    Enum.KeyCode.Unknown,
-                    Enum.UserInputState.Begin,
-                    Vector3.new(pos.X, pos.Y, 0)
-                )
-                game:GetService("UserInputService"):simulateInput(inputObj)
-                task.wait(0.1)
-                local inputObj2 = InputObject.new(
-                    Enum.UserInputType.Touch,
-                    Enum.KeyCode.Unknown,
-                    Enum.UserInputState.End,
-                    Vector3.new(pos.X, pos.Y, 0)
-                )
-                game:GetService("UserInputService"):simulateInput(inputObj2)
+            if btn then
+                btn:FireButton1Click()
                 return
             end
         end
