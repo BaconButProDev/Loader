@@ -119,26 +119,41 @@ local function isPinInBase(pin, base)
     return pinAngle >= baseStart or pinAngle <= baseEnd
 end
 
-local Event = game:GetService("ReplicatedStorage"):WaitForChild("RemoteEvent", 10)
-
 local function fireEKey()
-    local VIM = game:GetService("VirtualInputManager")
     if isMobile then
-        -- Không dùng BindAction vì sẽ conflict và làm mất nút E + Jump trên mobile
-        -- Dùng FireServer trực tiếp thay thế VirtualInputManager
-        if Event then
-            Event:FireServer("Input", "Action", false)
+        -- Tìm ContextActionButton đầu tiên trong ContextButtonFrame của player
+        local pg = LocalPlayer:FindFirstChild("PlayerGui")
+        local contextGui = pg and pg:FindFirstChild("ContextActionGui")
+        local frame = contextGui and contextGui:FindFirstChild("ContextButtonFrame")
+        if frame then
+            local btn = frame:FindFirstChild("ContextActionButton")
+            if btn and btn:IsA("ImageButton") then
+                -- Giả lập tap vào giữa button
+                local pos = btn.AbsolutePosition + btn.AbsoluteSize / 2
+                local inputObj = InputObject.new(
+                    Enum.UserInputType.Touch,
+                    Enum.KeyCode.Unknown,
+                    Enum.UserInputState.Begin,
+                    Vector3.new(pos.X, pos.Y, 0)
+                )
+                game:GetService("UserInputService"):simulateInput(inputObj)
+                task.wait(0.1)
+                local inputObj2 = InputObject.new(
+                    Enum.UserInputType.Touch,
+                    Enum.KeyCode.Unknown,
+                    Enum.UserInputState.End,
+                    Vector3.new(pos.X, pos.Y, 0)
+                )
+                game:GetService("UserInputService"):simulateInput(inputObj2)
+                return
+            end
         end
-        -- Reload lại button sau khi fire để tránh button bị ẩn
-        task.delay(0.15, function()
-            local CAS = game:GetService("ContextActionService")
-            CAS:UnbindAction("__BaconAutoE_dummy") -- no-op, chỉ để flush CAS
-        end)
-    else
-        VIM:SendKeyEvent(true,  Enum.KeyCode.E, false, game)
-        task.wait(0.1)
-        VIM:SendKeyEvent(false, Enum.KeyCode.E, false, game)
     end
+    -- PC fallback
+    local VIM = game:GetService("VirtualInputManager")
+    VIM:SendKeyEvent(true,  Enum.KeyCode.E, false, game)
+    task.wait(0.1)
+    VIM:SendKeyEvent(false, Enum.KeyCode.E, false, game)
 end
 
 local function startAutoComputer()
