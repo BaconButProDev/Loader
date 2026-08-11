@@ -100,7 +100,7 @@ local function removeTag(obj, tag, tbl)
     if tbl then tbl[obj] = nil end
 end
 
--- ─────────────────── Auto Computer (MOBILE FIX CHO DELTA) ───────────────────
+-- ─────────────────── Auto Computer ──────────────────────────────────────────
 
 local function findTimingCircle()
     local pg = LocalPlayer:FindFirstChild("PlayerGui")
@@ -119,41 +119,21 @@ local function isPinInBase(pin, base)
     return pinAngle >= baseStart or pinAngle <= baseEnd
 end
 
+local Event = game:GetService("ReplicatedStorage"):WaitForChild("RemoteEvent", 10)
+
 local function fireEKey()
     local VIM = game:GetService("VirtualInputManager")
     if isMobile then
-        local success = false
-        
-        -- CÁCH 1: Dùng getconnections can thiệp trực tiếp (Delta cực kì thích cái này)
-        local pg = LocalPlayer:FindFirstChild("PlayerGui")
-        local casGui = pg and pg:FindFirstChild("ContextActionGui")
-        if casGui then
-            for _, v in ipairs(casGui:GetDescendants()) do
-                if (v:IsA("ImageButton") or v:IsA("TextButton")) and v.Visible then
-                    -- Bắn signal trực tiếp bằng hàm của executor
-                    if type(getconnections) == "function" then
-                        for _, conn in ipairs(getconnections(v.MouseButton1Click) or {}) do pcall(conn.Function) end
-                        for _, conn in ipairs(getconnections(v.TouchTap) or {}) do pcall(conn.Function) end
-                        success = true
-                    end
-                    if type(firesignal) == "function" then
-                        pcall(function() firesignal(v.TouchTap) end)
-                        pcall(function() firesignal(v.MouseButton1Click) end)
-                        success = true
-                    end
-                    if success then break end
-                end
-            end
+        -- Không dùng BindAction vì sẽ conflict và làm mất nút E + Jump trên mobile
+        -- Dùng FireServer trực tiếp thay thế VirtualInputManager
+        if Event then
+            Event:FireServer("Input", "Action", false)
         end
-        
-        -- CÁCH 2: Backup nếu không tìm thấy nút - Bắn tín hiệu "Touch" thật lên giữa màn hình
-        if not success then
-            local cx, cy = screenSize.X / 2, screenSize.Y / 2
-            -- 0 = Ngón tay chạm vào (Began), 2 = Ngón tay nhả ra (Ended). ID 12345 để không bị lặp.
-            pcall(function() VIM:SendTouchEvent(12345, 0, cx, cy) end)
-            task.wait(0.05)
-            pcall(function() VIM:SendTouchEvent(12345, 2, cx, cy) end)
-        end
+        -- Reload lại button sau khi fire để tránh button bị ẩn
+        task.delay(0.15, function()
+            local CAS = game:GetService("ContextActionService")
+            CAS:UnbindAction("__BaconAutoE_dummy") -- no-op, chỉ để flush CAS
+        end)
     else
         VIM:SendKeyEvent(true,  Enum.KeyCode.E, false, game)
         task.wait(0.1)
@@ -365,13 +345,15 @@ end)
 
 -- ─────────────────── Teleport ────────────────────────────────────────────────
 
+-- Đếm số hướng open (không trúng tường) từ một vị trí candidate
+-- Candidate nào có nhiều open space nhất thì chọn → tránh bị kẹt tường
 local PROBE_DIRS = {
     Vector3.new( 1, 0,  0),
     Vector3.new(-1, 0,  0),
     Vector3.new( 0, 0,  1),
     Vector3.new( 0, 0, -1),
 }
-local PROBE_DIST = 2.5 
+local PROBE_DIST = 2.5  -- khoảng cách probe từ candidate ra 4 hướng
 
 local function scoreOpenSpace(pos, rayParams)
     local score = 0
@@ -391,6 +373,7 @@ local function findSafePositionInFront(targetCF)
     rayParams.FilterDescendantsInstances = {char}
     rayParams.FilterType = Enum.RaycastFilterType.Exclude
 
+    -- 4 hướng quanh target × 3 khoảng cách = 12 ứng viên
     local dirs = {targetCF.LookVector, -targetCF.LookVector, targetCF.RightVector, -targetCF.RightVector}
     local bestCF, bestScore = nil, -1
 
@@ -399,13 +382,16 @@ local function findSafePositionInFront(targetCF)
             local origin = targetCF.Position + Vector3.new(0, 1.5, 0)
             local cand   = origin + dir * dist
 
+            -- Kiểm tra không có tường giữa target và candidate
             if not Workspace:Raycast(origin, dir * dist, rayParams) then
+                -- Kiểm tra có sàn phía dưới
                 local down = Workspace:Raycast(cand + Vector3.new(0, 2, 0), Vector3.new(0, -5, 0), rayParams)
                 if down then
                     local landPos = down.Position + Vector3.new(0, 3, 0)
                     local score   = scoreOpenSpace(landPos, rayParams)
                     if score > bestScore then
                         bestScore = score
+                        -- Nhân vật nhìn về phía computer (ngược dir)
                         bestCF = CFrame.new(landPos, landPos - dir)
                     end
                 end
@@ -503,10 +489,14 @@ end
 
 -- ─────────────────── Noclip (R6 safe) ───────────────────────────────────────
 
+-- R6 chỉ có 6 parts; tay/chân mặc định CanCollide = false.
+-- Chỉ HumanoidRootPart và Torso mới có collision thật sự.
+-- Nếu ta set tất cả = true khi tắt noclip thì tay sẽ bị xuyên bất thường.
 local R6_COLLISION_PARTS = {
     HumanoidRootPart = true,
     Torso            = true,
     Head             = true,
+    -- Left Arm / Right Arm / Left Leg / Right Leg: mặc định false → giữ false
 }
 
 local function enableNoclip()
@@ -524,6 +514,7 @@ local function disableNoclip()
     noclipEnabled = false
     if noclipConn then noclipConn:Disconnect() noclipConn = nil end
 
+    -- Restore đúng theo R6: chỉ bật collision cho HRP/Torso/Head
     local char = getChar()
     if char then
         for _, part in ipairs(char:GetChildren()) do
@@ -533,6 +524,7 @@ local function disableNoclip()
         end
     end
 
+    -- Reset velocity: tránh lean / trượt nghiêng sau khi tắt noclip
     local hrp = getHRP()
     if hrp then
         hrp.AssemblyLinearVelocity  = Vector3.zero
