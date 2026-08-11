@@ -119,25 +119,16 @@ local function isPinInBase(pin, base)
     return pinAngle >= baseStart or pinAngle <= baseEnd
 end
 
-local function fireEKey()
-    if isMobile then
-        -- Tìm ContextActionButton đầu tiên trong ContextButtonFrame của player
-        local pg = Players[LocalPlayer.Name]:FindFirstChild("PlayerGui")
-        local contextGui = pg and pg:FindFirstChild("ContextActionGui")
-        local frame = contextGui and contextGui:FindFirstChild("ContextButtonFrame")
-        if frame then
-            local btn = frame:FindFirstChild("ContextActionButton")
-            if btn then
-                btn:FireButton1Click()
-                return
-            end
-        end
-    end
-    -- PC fallback
-    local VIM = game:GetService("VirtualInputManager")
-    VIM:SendKeyEvent(true,  Enum.KeyCode.E, false, game)
+local Keyvirtual = function(key)
+    keypress(key)
     task.wait(0.1)
-    VIM:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+    keyrelease(key)
+end
+
+local function fireEKey()
+    pcall(function()
+        Keyvirtual(0x45)
+    end)
 end
 
 local function startAutoComputer()
