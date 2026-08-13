@@ -120,18 +120,20 @@ local function isPinInBase(pin, base)
 end
 
 local function fireEKey()
-    pcall(function()
-        local inputObj = {
-            KeyCode = Enum.KeyCode.E,
-            UserInputType = Enum.UserInputType.Keyboard,
-            UserInputState = Enum.UserInputState.Begin,
-        }
-        for _, conn in ipairs(getconnections(UserInputService.InputBegan)) do
-            pcall(function() conn:Fire(inputObj, false) end)
-        end
-    end)
+    local VIM = game:GetService("VirtualInputManager")
+    if isMobile then
+        local CAS = game:GetService("ContextActionService")
+        CAS:BindAction("__BaconAutoE", function() end, false, Enum.KeyCode.E)
+        VIM:SendKeyEvent(true,  Enum.KeyCode.E, false, game)
+        task.wait(0.1)
+        VIM:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+        CAS:UnbindAction("__BaconAutoE")
+    else
+        VIM:SendKeyEvent(true,  Enum.KeyCode.E, false, game)
+        task.wait(0.1)
+        VIM:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+    end
 end
-
 
 local function startAutoComputer()
     if autoComputerLoop then return end
